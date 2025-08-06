@@ -1,0 +1,127 @@
+Sub PlotSingleLineWithColorSegments_Accurate()
+    Dim ws As Worksheet, wsTemp As Worksheet, wsChart As Worksheet
+    Dim lastCol As Long, lastRow As Long
+    Dim colY As Long, r As Long
+    Dim chartObj As ChartObject
+    Dim chartTop As Double
+    Dim chartHeight As Double: chartHeight = 300
+    Dim chartWidth As Double: chartWidth = 600
+    Dim beforeEnd As Long, duringStart As Long, duringEnd As Long, afterStart As Long
+
+    ' === Prompt for row ranges ===
+    beforeEnd = CLng(Application.InputBox("Enter last row number of 'Before' period", "Before Period", Type:=1))
+    duringStart = CLng(Application.InputBox("Enter first row number of 'During' period", "During Period", Type:=1))
+    duringEnd = CLng(Application.InputBox("Enter last row number of 'During' period", "During Period", Type:=1))
+    afterStart = CLng(Application.InputBox("Enter first row number of 'After' period", "After Period", Type:=1))
+
+    ' === SOURCE ===
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+
+    ' === TEMP SHEET ===
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    ThisWorkbook.Sheets("TempPlot").Delete
+    On Error GoTo 0
+    Application.DisplayAlerts = True
+
+    Set wsTemp = ThisWorkbook.Sheets.Add
+    wsTemp.Name = "TempPlot"
+
+    ' === CHART SHEET ===
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    ThisWorkbook.Sheets("Charts").Delete
+    On Error GoTo 0
+    Application.DisplayAlerts = True
+
+    Set wsChart = ThisWorkbook.Sheets.Add
+    wsChart.Name = "Charts"
+
+    chartTop = 20
+
+    ' === Copy X column ===
+    wsTemp.Range("A1").Value = "X"
+    ws.Range("A2:A" & lastRow).Copy wsTemp.Range("A2")
+
+    ' === Loop through Y columns ===
+    For colY = 2 To lastCol
+        ' Create helper columns
+        Dim colBefore As Long: colBefore = wsTemp.Cells(1, wsTemp.Columns.Count).End(xlToLeft).Column + 1
+        Dim colDuring As Long: colDuring = colBefore + 1
+        Dim colAfter As Long: colAfter = colDuring + 1
+
+        wsTemp.Cells(1, colBefore).Value = "Before_" & ws.Cells(1, colY).Value
+        wsTemp.Cells(1, colDuring).Value = "During_" & ws.Cells(1, colY).Value
+        wsTemp.Cells(1, colAfter).Value = "After_" & ws.Cells(1, colY).Value
+
+        For r = 2 To lastRow
+            Dim val As Variant: val = ws.Cells(r, colY).Value
+
+            If r <= beforeEnd Then
+                wsTemp.Cells(r, colBefore).Value = val
+                wsTemp.Cells(r, colDuring).Value = CVErr(xlErrNA)
+                wsTemp.Cells(r, colAfter).Value = CVErr(xlErrNA)
+            ElseIf r >= duringStart And r <= duringEnd Then
+                wsTemp.Cells(r, colBefore).Value = CVErr(xlErrNA)
+                wsTemp.Cells(r, colDuring).Value = val
+                wsTemp.Cells(r, colAfter).Value = CVErr(xlErrNA)
+            ElseIf r >= afterStart Then
+                wsTemp.Cells(r, colBefore).Value = CVErr(xlErrNA)
+                wsTemp.Cells(r, colDuring).Value = CVErr(xlErrNA)
+                wsTemp.Cells(r, colAfter).Value = val
+            Else
+                wsTemp.Cells(r, colBefore).Value = CVErr(xlErrNA)
+                wsTemp.Cells(r, colDuring).Value = CVErr(xlErrNA)
+                wsTemp.Cells(r, colAfter).Value = CVErr(xlErrNA)
+            End If
+        Next r
+
+        ' === Create Chart ===
+        Set chartObj = wsChart.ChartObjects.Add(Left:=20, Top:=chartTop, Width:=chartWidth, Height:=chartHeight)
+        With chartObj.Chart
+            .ChartType = xlLine
+            .HasTitle = True
+            .ChartTitle.Text = ws.Cells(1, colY).Value
+            .Axes(xlCategory).HasTitle = True
+            .Axes(xlCategory).AxisTitle.Text = "Time"
+            .Axes(xlValue).HasTitle = True
+            .Axes(xlValue).AxisTitle.Text = "Value"
+
+            ' Series 1 - Before (Red)
+            .SeriesCollection.NewSeries
+            .SeriesCollection(1).Name = "Before"
+            .SeriesCollection(1).XValues = wsTemp.Range("A2:A" & lastRow)
+            .SeriesCollection(1).Values = wsTemp.Range(wsTemp.Cells(2, colBefore), wsTemp.Cells(lastRow, colBefore))
+            .SeriesCollection(1).Format.Line.ForeColor.RGB = RGB(255, 0, 0)
+
+            ' Series 2 - During (Green)
+            .SeriesCollection.NewSeries
+            .SeriesCollection(2).Name = "During"
+            .SeriesCollection(2).XValues = wsTemp.Range("A2:A" & lastRow)
+            .SeriesCollection(2).Values = wsTemp.Range(wsTemp.Cells(2, colDuring), wsTemp.Cells(lastRow, colDuring))
+            .SeriesCollection(2).Format.Line.ForeColor.RGB = RGB(0, 128, 0)
+
+            ' Series 3 - After (Blue)
+            .SeriesCollection.NewSeries
+            .SeriesCollection(3).Name = "After"
+            .SeriesCollection(3).XValues = wsTemp.Range("A2:A" & lastRow)
+            .SeriesCollection(3).Values = wsTemp.Range(wsTemp.Cells(2, colAfter), wsTemp.Cells(lastRow, colAfter))
+            .SeriesCollection(3).Format.Line.ForeColor.RGB = RGB(0, 0, 255)
+
+            ' Remove markers
+            Dim s As Integer
+            For s = 1 To 3
+                With .SeriesCollection(s)
+                    .MarkerStyle = xlMarkerStyleNone
+                    .Format.Line.Weight = 2.25
+                End With
+            Next s
+        End With
+
+        chartTop = chartTop + chartHeight + 20
+    Next colY
+
+    MsgBox "Charts created accurately with color-segmented lines.", vbInformation
+End Sub

@@ -1,0 +1,18 @@
+Sub ConvertXAxisToTextFormat()
+    Dim ws As Worksheet
+    Dim chartObj As ChartObject
+
+    ' Update this to your chart sheet name
+    Set ws = ThisWorkbook.Sheets("Chart")
+
+    For Each chartObj In ws.ChartObjects
+        With chartObj.Chart
+            On Error Resume Next
+            ' Convert X-axis to category (text) format
+            .Axes(xlCategory).CategoryType = xlCategoryScale
+            On Error GoTo 0
+        End With
+    Next chartObj
+
+    MsgBox "All X-axes converted to text format on sheet: " & ws.Name
+End Sub
